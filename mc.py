@@ -5,14 +5,13 @@ import numpy as np
 
 import time
 
-#screen_width = GetSystemMetrics(0)
-#screen_height = GetSystemMetrics(1)
+# screen_width = GetSystemMetrics(0)
+# screen_height = GetSystemMetrics(1)
 
-sw = 1920
-sh = 1080
-#import ctypes
-#user32 = ctypes.windll.user32
-#sw,sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+
+import ctypes
+user32 = ctypes.windll.user32
+sw,sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
 
 width  = sw*0.49
 height = sh*0.75
@@ -29,9 +28,6 @@ dot_size = 12
 dotsPos = dict()
 squaresPos = dict()
 
-def pause(t):
-    time.sleep(t)
-
 def move_forward(d):
     time.sleep(1)
     forward(d)
@@ -40,6 +36,22 @@ def move_backward(d):
     time.sleep(1)
     backward(d)
 
+
+def robot_tired():
+    return False
+
+def scan_for_squares(a):
+    wn.listen()
+    for i in range(a):
+        right(1)
+        print("Rotate")
+        for id in squaresPos.values():
+            x,y = is_square_in_fov(id, delay=0, fov = False)
+            if x is not None and y is not None:
+                print("Found id ", id)
+                #is_square_in_fov(id, delay=1, fov=True)
+                return id
+        
 def rotate(a):
     time.sleep(1)
     if a > 0:
@@ -103,8 +115,9 @@ def set_start_position(x,y):
 # place a square at the nearest integer coordinate, in order to not be too
 # difficult to catch a dot, the (x,y) is the center of the square
 def place_square(x,y, color, label=None, len=dot_size*1.5, store=True):
+    global squaresPos
     current_x, current_y = position()
-    drawings.tracer(0)
+    drawings.getscreen().tracer(0)
     drawings.hideturtle()
     drawings.penup()
     drawings.color(color)
@@ -122,18 +135,18 @@ def place_square(x,y, color, label=None, len=dot_size*1.5, store=True):
             drawings.write(label, font=('Arial', 16, 'normal'), align='right')
             squaresPos[(xx, yy)] = label
         else:
-            squarePos[(xx, yy)] = 255
+            squaresPos[(xx, yy)] = 255
     #goto(current_x, current_y)
     #get_visible()
     drawings.penup()
-    drawings.tracer(1,1)
+    drawings.getscreen().tracer(1,1)
 
     
 # place a "dot" at the nearest integer coordinate, in order to not be too
 # difficult to catch a dot
 def place_dot(x,y, color, label=None, _dot_size=dot_size, store=True):
     current_x, current_y = position()
-    drawings.tracer(0)
+    drawings.getscreen().tracer(0)
     drawings.hideturtle()
     drawings.penup()
     drawings.goto(x,y)
@@ -150,7 +163,7 @@ def place_dot(x,y, color, label=None, _dot_size=dot_size, store=True):
     drawings.tracer(1,1)
 
 def place_temporary_dot(x,y, color, label=None, _dot_size=dot_size, store=True):
-    temp.tracer(0)
+    temp.getscreen().tracer(0)
     temp.hideturtle()
     temp.penup()
     temp.goto(x,y)
@@ -161,7 +174,7 @@ def place_temporary_dot(x,y, color, label=None, _dot_size=dot_size, store=True):
             dotsPos[(round(x), round(y))] = label
         else:
             dotsPos[(round(x), round(y))] = 255
-    temp.tracer(1,1)
+    temp.getscreen().tracer(1,1)
 
 def is_dot(x,y):
     if (round(x), round(y)) in dotsPos:
@@ -206,23 +219,26 @@ def is_dot_in_fov_by_id(id, x,y, heading, range=50):
     return None, None
 
 
-def is_square_in_fov_by_id(id, x,y, heading, range=50):
+def is_square_in_fov_by_id(id, x,y, heading, fov = True, range=50, delay=0.5):
     if heading < 0:
         heading = 360 + heading 
 
-    show_fov(x,y,heading, range)
+    if fov:
+        show_fov(x,y,heading, range)
     circle_fov = (x + range * np.cos((np.pi / 180.) * (heading)), y + range * np.sin((np.pi / 180.) * (heading)))
 
     for pos in squaresPos:
         if ((circle_fov[0] - pos[0])*(circle_fov[0] - pos[0]) + (circle_fov[1] - pos[1])*(circle_fov[1] - pos[1])) < range*range:
             #print "Found square ...", pos
             if squaresPos[pos] == id:
-                time.sleep(0.5)
-                hide_fov(x,y,heading, range)
+                time.sleep(delay)
+                if fov:
+                        hide_fov(x,y,heading, range)
                 print("Found square by id: ", id)
                 return pos
-    time.sleep(0.5)
-    hide_fov(x,y,heading, range)
+    time.sleep(delay)
+    if fov:
+            hide_fov(x,y,heading, range)
     return None, None
 
     
@@ -355,14 +371,24 @@ shape('turtle')
 title("MindCraft's Turtle")
 
 set_start_position(width/2,height/2)
+
+# EF: added this function as a wrapper to write_text to make it similar to easy_cozmo's API
+
+def say(str):
+    write_text(str)
+
+def acos(value):
+    import math
+    return math.degrees(math.acos(value))
+
 # TJ:	added this function as a wrapper for write; to 
 #   	increase the default size of the font
 def write_text(str):
 	write(str, font=("Arial", 25, "normal"))
 
-def is_square_in_fov(id):
+def is_square_in_fov(id, fov = True, delay=0.5):
 	x,y = get_position()
-	return is_square_in_fov_by_id(id, x, y, get_heading(), 150)
+	return is_square_in_fov_by_id(id, x, y, get_heading(), range=150, fov=fov, delay=delay)
 		
 def teleport(x,y):
 	hideturtle()
@@ -370,7 +396,29 @@ def teleport(x,y):
 	goto(x,y)
 	pendown()
 	showturtle()
-	
+
+def go_to_square_by_id(id, delay=1):
+    import math
+    time.sleep(delay)
+    xr, yr = get_position()
+    for pos in squaresPos:
+        if squaresPos[pos] == id:
+            x,y = pos
+            xr = x - xr
+            yr = y - yr
+            angle = math.degrees(math.atan2(yr, xr))
+            set_heading(angle)
+            time.sleep(delay)
+            teleport(x,y)
+            time.sleep(delay)
+            
+            return True
+    return False
+                
+def align_with_left_post(delay=1):
+    time.sleep(delay)
+    set_heading(180)
+
 def setup_squares():
     place_square(100, 100, 'red', 1)
     place_square(100, 300, 'red', 2)
